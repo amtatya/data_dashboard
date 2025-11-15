@@ -3,26 +3,26 @@ import pandas as pd
 import requests
 import time
 import plotly.express as px
-from io import BytesIO
 
 # ---------------------------------------------------------
 # PAGE CONFIG
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Kobo Dashboard",
+    page_title="KoboToolbox Dashboard",
     layout="wide",
 )
 
 
-st.title("📊 KoboToolbox Dashboard")
+st.title("📊KoboToolbox Dashboard")
 st.write("Real-time monitoring, interactive charts, filters, and auto-refresh.")
+start_button = st.button("🚀 Start Live Dashboard", use_container_width=True, key="start_live_dashboard")
 
 # ---------------------------------------------------------
 # USER INPUTS
 # ---------------------------------------------------------
 api_token = "4fefa33dcfbd11038b91e03c4da752db845fb790"
 form_id = "aF3hzEPTJkYZqMQk37NCpd"
-button = st.button("🚀 Start Dashboard", use_container_width=True)
+
 refresh_rate = st.slider("⏱ Auto-Refresh (seconds)", 10, 300, 30)
 st.write(f"Dashboard will automatically update every {refresh_rate} seconds.")
 
@@ -59,7 +59,7 @@ def get_kobo_data(api_token, form_id):
 # ---------------------------------------------------------
 # LIVE AUTO-UPDATE LOOP
 # ---------------------------------------------------------
-if api_token and form_id and button:
+if api_token and form_id and start_button:
 
     while True:
         with placeholder.container():
@@ -91,7 +91,7 @@ if api_token and form_id and button:
             # --------------------------------------------
             st.subheader("🔍 Data Filters")
 
-            column_filter = st.selectbox("Choose column to filter:", df.columns)
+            column_filter = st.selectbox("Choose column to filter:", df.columns, key="filter_col")
             unique_vals = df[column_filter].dropna().unique()
 
             selected_filter = st.multiselect(
@@ -113,7 +113,7 @@ if api_token and form_id and button:
             # --------------------------------------------
             st.subheader("📈 Interactive Visualization")
 
-            selected_chart_col = st.selectbox("Choose a column to visualize:", df.columns)
+            selected_chart_col = st.selectbox("Choose a column to visualize:", df.columns, key="chart_col")
 
             try:
                 fig = px.bar(
@@ -131,19 +131,7 @@ if api_token and form_id and button:
 
             # CSV
             csv = filtered_df.to_csv(index=False).encode("utf-8")
-            st.download_button("Download CSV", data=csv, file_name="kobo_data.csv")
+            st.download_button("Download CSV", data=csv, file_name="kobo_data.csv", use_container_width=True, key="csv_down")
 
-            # Excel
-            excel_buffer = BytesIO()
-            with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
-                filtered_df.to_excel(writer, index=False, sheet_name="Data")
-
-            st.download_button(
-                "Download Excel",
-                data=excel_buffer,
-                file_name="kobo_data.xlsx",
-            )
-
-        # wait before refreshing
+            
         time.sleep(refresh_rate)
-
