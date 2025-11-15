@@ -91,7 +91,7 @@ if api_token and form_id and start_button:
             # --------------------------------------------
             st.subheader("🔍 Data Filters")
 
-            column_filter = st.selectbox("Choose column to filter:", df.columns, key="filter_col")
+            column_filter = st.selectbox("Choose column to filter:", df.columns, key=f"filter_col_{len(df.columns)}")
             unique_vals = df[column_filter].dropna().unique()
 
             selected_filter = st.multiselect(
@@ -113,7 +113,7 @@ if api_token and form_id and start_button:
             # --------------------------------------------
             st.subheader("📈 Interactive Visualization")
 
-            selected_chart_col = st.selectbox("Choose a column to visualize:", df.columns, key="chart_col")
+            selected_chart_col = st.selectbox("Choose a column to visualize:", df.columns, key=f"filter_col_{len(df.columns)+1}")
 
             try:
                 fig = px.bar(
