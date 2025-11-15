@@ -1,151 +1,150 @@
 import streamlit as st
 import pandas as pd
-import math
-from pathlib import Path
+import requests
+import time
+import plotly.express as px
+from io import BytesIO
 
-# Set the title and favicon that appear in the Browser's tab bar.
+# ---------------------------------------------------------
+# PAGE CONFIG
+# ---------------------------------------------------------
 st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
+    page_title="Advanced Kobo Dashboard",
+    layout="wide",
 )
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
 
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+st.title("📊 Advanced KoboToolbox Dashboard")
+st.write("Real-time monitoring, interactive charts, filters, and auto-refresh.")
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
+# ---------------------------------------------------------
+# USER INPUTS
+# ---------------------------------------------------------
+api_token = st.text_input("🔐 Enter Kobo API Token", type="password")
+form_id = st.text_input("🆔 Enter Kobo Form ID (Asset UID)")
 
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
+refresh_rate = st.slider("⏱ Auto-Refresh (seconds)", 10, 300, 30)
+st.write(f"Dashboard will automatically update every {refresh_rate} seconds.")
 
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
+placeholder = st.empty()  # placeholder for live refresh UI
 
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
+# ---------------------------------------------------------
+# FUNCTION TO FETCH DATA
+# ---------------------------------------------------------
+def get_kobo_data(api_token, form_id):
+    url = f"https://kf.kobotoolbox.org/api/v2/assets/{form_id}/data/"
 
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
+    headers = {
+        "Authorization": f"Token {api_token}"
+    }
 
-    return gdp_df
+    response = requests.get(url, headers=headers)
 
-gdp_df = get_gdp_data()
+    print("STATUS:", response.status_code)
+    print("RAW:", response.text[:500])  # DEBUG
 
-# -----------------------------------------------------------------------------
-# Draw the actual page
+    if response.status_code != 200:
+        raise Exception(f"Error fetching data: {response.status_code}")
 
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
+    try:
+        data = response.json()
+    except Exception as e:
+        print("JSON ERROR:", e)
+        print("Full response:", response.text)
+        raise e
 
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
+    df = pd.json_normalize(data.get("results", []))
+    return df
 
-# Add some spacing
-''
-''
+# ---------------------------------------------------------
+# LIVE AUTO-UPDATE LOOP
+# ---------------------------------------------------------
+if api_token and form_id and st.button("Enter Dashboard"):
 
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
+    while True:
+        with placeholder.container():
 
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
+            st.info("🔄 Fetching latest data from KoboToolbox...")
 
-countries = gdp_df['Country Code'].unique()
+            df = get_kobo_data(api_token, form_id)
 
-if not len(countries):
-    st.warning("Select at least one country")
+            if df is None:
+                st.error("❌ Failed to fetch data. Check token or form ID.")
+                break
+            if df.empty:
+                st.info("No submissions found for this form.")
+                st.stop()
 
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
+            # --------------------------------------------
+            # METRICS
+            # --------------------------------------------
+            st.subheader("📌 Summary Metrics")
 
-''
-''
-''
+            col1, col2, col3 = st.columns(3)
 
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
+            col1.metric("Total Submissions", len(df))
+            col2.metric("Columns Available", df.shape[1])
+            col3.metric("Last Update", pd.Timestamp.now().strftime("%H:%M:%S"))
 
-st.header('GDP over time', divider='gray')
+            # --------------------------------------------
+            # FILTERS
+            # --------------------------------------------
+            st.subheader("🔍 Data Filters")
 
-''
+            column_filter = st.selectbox("Choose column to filter:", df.columns)
+            unique_vals = df[column_filter].dropna().unique()
 
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
-)
+            selected_filter = st.multiselect(
+                "Select values to include:", unique_vals
+            )
 
-''
-''
+            filtered_df = df
+            if selected_filter:
+                filtered_df = df[df[column_filter].isin(selected_filter)]
 
+            # --------------------------------------------
+            # DATA TABLE
+            # --------------------------------------------
+            st.subheader("📄 Live Data Table")
+            st.dataframe(filtered_df, height=350)
 
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
+            # --------------------------------------------
+            # INTERACTIVE CHARTS (Plotly)
+            # --------------------------------------------
+            st.subheader("📈 Interactive Visualization")
 
-st.header(f'GDP in {to_year}', divider='gray')
+            selected_chart_col = st.selectbox("Choose a column to visualize:", df.columns)
 
-''
+            try:
+                fig = px.bar(
+                    filtered_df[selected_chart_col].value_counts(),
+                    title=f"Distribution of {selected_chart_col}",
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            except:
+                st.warning("⚠ Cannot plot this column.")
 
-cols = st.columns(4)
+            # --------------------------------------------
+            # DOWNLOAD SECTION
+            # --------------------------------------------
+            st.subheader("⬇ Download Data")
 
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
+            # CSV
+            csv = filtered_df.to_csv(index=False).encode("utf-8")
+            st.download_button("Download CSV", data=csv, file_name="kobo_data.csv")
 
-    with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
+            # Excel
+            excel_buffer = BytesIO()
+            with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
+                filtered_df.to_excel(writer, index=False, sheet_name="Data")
 
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
-        else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
+            st.download_button(
+                "Download Excel",
+                data=excel_buffer,
+                file_name="kobo_data.xlsx",
+            )
 
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
-        )
+        # wait before refreshing
+        time.sleep(refresh_rate)
+else:
+    st.warning("👇 Enter your API Token and Form ID to start.")
