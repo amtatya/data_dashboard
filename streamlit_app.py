@@ -9,20 +9,20 @@ from io import BytesIO
 # PAGE CONFIG
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Advanced Kobo Dashboard",
+    page_title="Kobo Dashboard",
     layout="wide",
 )
 
 
-st.title("📊 Advanced KoboToolbox Dashboard")
+st.title("📊 KoboToolbox Dashboard")
 st.write("Real-time monitoring, interactive charts, filters, and auto-refresh.")
 
 # ---------------------------------------------------------
 # USER INPUTS
 # ---------------------------------------------------------
-api_token = st.text_input("🔐 Enter Kobo API Token", type="password")
-form_id = st.text_input("🆔 Enter Kobo Form ID (Asset UID)")
-
+api_token = "4fefa33dcfbd11038b91e03c4da752db845fb790"
+form_id = "aF3hzEPTJkYZqMQk37NCpd"
+button = st.button("🚀 Start Dashboard", use_container_width=True)
 refresh_rate = st.slider("⏱ Auto-Refresh (seconds)", 10, 300, 30)
 st.write(f"Dashboard will automatically update every {refresh_rate} seconds.")
 
@@ -59,7 +59,7 @@ def get_kobo_data(api_token, form_id):
 # ---------------------------------------------------------
 # LIVE AUTO-UPDATE LOOP
 # ---------------------------------------------------------
-if api_token and form_id and st.button("Enter Dashboard"):
+if api_token and form_id and button:
 
     while True:
         with placeholder.container():
