@@ -146,5 +146,4 @@ if api_token and form_id and button:
 
         # wait before refreshing
         time.sleep(refresh_rate)
-else:
-    st.warning("👇 Enter your API Token and Form ID to start.")
+
